@@ -1,0 +1,117 @@
+/* --- Global Layout Fixes --- */
+
+/* Force the interaction wrapper to have a specific height and layout */
+#interaction-wrapper {
+    height: 75vh; /* Responsive height based on viewport */
+    min-height: 600px; /* Minimum height to prevent crunching */
+    max-height: 900px;
+    display: flex; /* Flexbox is crucial for side-by-side layout */
+    flex-direction: row;
+    overflow: hidden; /* Hide anything that spills out */
+    position: relative;
+}
+
+/* --- PDF Simulator Styles --- */
+
+/* The scrolling container for the PDF */
+.pdf-viewport {
+    flex: 1; /* Take up all remaining space */
+    overflow-y: auto; /* Allow vertical scrolling */
+    background-color: #525659; /* Standard PDF reader gray background */
+    padding: 20px;
+    scroll-behavior: auto; /* We handle smooth scrolling via JS for gaze */
+    position: relative;
+    /* Custom Scrollbar styling for webkit */
+    scrollbar-width: thin;
+    scrollbar-color: #888 #525659;
+}
+
+/* Individual Pages */
+.pdf-page {
+    background: white;
+    width: 100%;
+    max-width: 800px; /* Standard A4 width feel */
+    margin: 0 auto 20px auto; /* Centered with bottom margin */
+    padding: 60px; /* Internal page margin */
+    min-height: 1100px; /* Height of a standard page at zoom */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    font-family: 'Times New Roman', Times, serif;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #222;
+}
+
+.pdf-page h1 { font-size: 28px; font-weight: bold; margin-bottom: 20px; line-height: 1.2; }
+.pdf-page h2 { font-size: 22px; font-weight: bold; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+.pdf-page p { margin-bottom: 15px; text-align: justify; }
+
+/* --- Sidebar Styles --- */
+
+.sidebar {
+    width: 320px; /* Fixed width */
+    flex-shrink: 0; /* CRITICAL: Prevent sidebar from shrinking */
+    background: white;
+    border-left: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    z-index: 10;
+}
+
+/* --- Gaze Interaction Visuals --- */
+
+#gaze-dot {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: rgba(239, 68, 68, 0.6); /* Red with opacity */
+    border: 2px solid white;
+    border-radius: 50%;
+    pointer-events: none; /* Let clicks pass through */
+    z-index: 9999;
+    display: none; /* Hidden by default */
+    transform: translate(-50%, -50%); /* Center on coordinates */
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    transition: top 0.1s linear, left 0.1s linear; /* Smooth visual movement */
+}
+
+/* --- Voice Interaction Visuals --- */
+
+@keyframes pulse-red {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.recording-active {
+    animation: pulse-red 1.5s infinite;
+    background-color: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #b91c1c !important;
+}
+
+/* --- Sticky Notes in Sidebar --- */
+
+.sticky-note {
+    background: white;
+    border: 1px solid #e5e7eb;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    font-size: 13px;
+    border-left-width: 4px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Data Tables --- */
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: #f3f4f6; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600; }
+td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+tr:last-child td { border-bottom: none; }

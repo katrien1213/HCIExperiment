@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Multimodal Experiment Platform v5.0</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
+    
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+
+    <style>
+        /* --- GLOBAL VARIABLES & RESET --- */
+        :root { 
+            --sidebar-width: 400px; /* Wider for table visibility */
+            --footer-height: 180px;
+            --primary-color: #0d47a1; /* Professional Navy Blue */
+            --accent-color: #1976d2;
+            --success-color: #2e7d32;
+            --bg-color: #f4f6f8;
+            --border-color: #e0e0e0;
+        }
+        
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-color); }
+        
+        h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 2px solid var(--primary-color); padding-bottom: 6px; margin: 0 0 10px 0; color: #333; }
+        
+        /* --- LAYOUT STRUCTURE --- */
+        #app-container { display: flex; flex: 1; overflow: hidden; height: calc(100vh - var(--footer-height)); }
+        
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: var(--sidebar-width); background: #fff; border-right: 1px solid #ccc;
+            display: flex; flex-direction: column; overflow-y: auto; padding: 12px; gap: 12px; z-index: 20;
+        }
+
+        .config-box { 
+            background: #fff; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+        }
+        
+        /* Form Inputs */
+        .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .row label { width: 100px; font-weight: 600; color: #444; font-size: 11px; }
+        input[type="text"], input[type="number"], input[type="file"] { flex: 1; padding: 5px; border: 1px solid #ccc; border-radius: 3px; font-size: 11px; }
+        
+        /* Buttons */
+        button { 
+            padding: 6px 12px; border: 1px solid #bbb; background: #f5f5f5; border-radius: 3px; 
+            cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s; color: #333;
+        }
+        button:hover { background: #e0e0e0; }
+        button.primary { background: var(--primary-color); color: white; border-color: #002171; }
+        button.primary:hover { background: #002171; }
+        button.success { background: var(--success-color); color: white; border-color: #1b5e20; }
+        button.small { padding: 3px 8px; font-size: 10px; }
+
+        /* --- SCHEDULE TABLE (Prevent Overlap) --- */
+        #schedule-container {
+            margin-top: 8px;
+            border: 1px solid #ccc;
+            background: #fff;
+            /* CRITICAL: Fixed height with scroll prevents overlap */
+            height: 200px; 
+            overflow-y: auto;
+            border-radius: 3px;
+        }
+        #schedule-table { 
+            width: 100%; border-collapse: collapse; font-family: 'Consolas', monospace; font-size: 10px; table-layout: auto;
+        }
+        #schedule-table th {
+            background: #e0e0e0; position: sticky; top: 0; z-index: 5;
+            padding: 6px 4px; text-align: left; border-bottom: 1px solid #999;
+            font-weight: 700; color: #333; white-space: nowrap;
+        }
+        #schedule-table td { 
+            padding: 4px; border-bottom: 1px solid #eee; color: #333; white-space: nowrap;
+        }
+        #schedule-table tr:nth-child(even) { background: #f9f9f9; }
+        #schedule-table tr.active-row { 
+            background-color: #bbdefb; border-left: 4px solid var(--primary-color); 
+            font-weight: bold;
+        }
+
+        /* --- ACTIVE TRIAL PANEL --- */
+        #run-panel { border: 2px solid var(--primary-color); display: none; background: #fff; }
+        #trial-header { font-size: 14px; font-weight: 700; color: var(--primary-color); margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        
+        #annotation-area { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
+        #manual-input-container { display: none; }
+        textarea { width: 100%; height: 50px; padding: 5px; border: 1px solid #ccc; border-radius: 3px; resize: none; font-family: inherit; font-size: 11px; }
+        
+        #voice-input-container { display: none; text-align: center; }
+        .recording-pulse { animation: pulse 1.5s infinite; color: #d32f2f; font-weight: bold; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        #trial-notes-log { 
+            height: 80px; overflow-y: auto; background: #fdfdfd; border: 1px solid #eee; 
+            margin-top: 10px; padding: 5px; border-radius: 3px; 
+        }
+        .sticky-note { 
+            background: #fff9c4; border-left: 3px solid #fbc02d; 
+            padding: 4px; margin-bottom: 4px; font-size: 10px; border-radius: 2px; 
+        }
+
+        /* --- MAIN VIEW (PDF) --- */
+        #main-view { flex: 1; background: #525659; position: relative; display: flex; flex-direction: column; }
+        
+        #instruction-banner {
+            background: #fff; color: #333; padding: 10px; text-align: center;
+            font-size: 13px; font-weight: 600; border-bottom: 1px solid #ccc;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10;
+        }
+
+        #pdf-scroll-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; justify-content: center; }
+        #pdf-wrapper { width: 100%; max-width: 850px; }
+        canvas { display: block; width: 100%; box-shadow: 0 4px 10px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .textLayer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.2; line-height: 1.0; }
+
+        /* --- FOOTER (RESULTS) --- */
+        #footer { height: var(--footer-height); background: #fff; border-top: 1px solid #ccc; display: flex; flex-direction: column; }
+        #results-toolbar { padding: 6px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        #results-container { flex: 1; overflow: auto; }
+        .log-table { width: 100%; border-collapse: collapse; font-family: 'Consolas', monospace; font-size: 11px; }
+        .log-table th { background: #eee; position: sticky; top: 0; z-index: 10; padding: 6px; border: 1px solid #ccc; text-align: left; }
+        .log-table td { padding: 4px 6px; border: 1px solid #eee; white-space: nowrap; }
+
+        /* --- OVERLAYS --- */
+        #webgazerVideoContainer {
+            position: fixed !important; bottom: 20px !important; right: 20px !important;
+            top: auto !important; left: auto !important;
+            width: 140px !important; height: 105px !important;
+            z-index: 9999 !important; border: 2px solid var(--primary-color); border-radius: 4px; background: #000;
+        }
+        #webgazerVideoContainer video { width: 100% !important; height: 100% !important; object-fit: cover; }
+        #webgazerFaceOverlay, #webgazerFaceFeedbackBox {
+            width: 140px !important; height: 105px !important; position: absolute !important; top: 0 !important; left: 0 !important;
+        }
+        #calib-dot { width: 18px; height: 18px; background: red; border-radius: 50%; position: fixed; z-index: 10000; display: none; }
+        #gaze-dot { width: 10px; height: 10px; background: rgba(255,0,0,0.6); border-radius: 50%; position: fixed; z-index: 9998; pointer-events: none; display: none; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <aside id="sidebar">
+        <div class="config-box">
+            <h2>1. Configuration</h2>
+            <div class="row"><label>Participant ID</label><input type="text" id="pID" value="P001"></div>
+            <div class="row"><label>Stimulus (PDF)</label><input type="file" id="pdfFile" accept="application/pdf"></div>
+        </div>
+
+        <div class="config-box">
+            <h2>2. Experimental Design</h2>
+            <div id="factors-container"></div> 
+            <button onclick="addFactorUI()" style="width:100%; margin-top:5px;">+ Add Factor</button>
+            
+            <div style="margin-top:10px; padding-top:10px; border-top:1px solid #eee;">
+                <div class="row"><label>Trials / Cond.</label><input type="number" id="trialsPer" value="1" min="1"></div>
+                <div class="row"><label>Strict Order</label><input type="checkbox" id="strictOrder"></div>
+                <div class="row"><label>Randomize</label><input type="checkbox" id="randomize" checked></div>
+                <div class="row"><label>Seed</label><input type="text" id="seed" value="42"></div>
+            </div>
+            <button id="genBtn" class="primary" style="width:100%; margin-top:10px;">Generate Schedule</button>
+        </div>
+
+        <div class="config-box" style="padding: 10px; overflow: hidden;">
+            <div style="font-weight: 700; color: #555; margin-bottom: 5px;">Schedule</div>
+            <div id="schedule-container">
+                <table id="schedule-table">
+                    <thead><tr id="schedule-header"><th>#</th><th>Waiting...</th></tr></thead>
+                    <tbody><tr><td colspan="2" style="padding:10px; text-align:center; color:#999;">Generate trials to populate</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="config-box">
+            <h2>3. Eye Tracker</h2>
+            <div style="display:flex; gap:5px;">
+                <button onclick="startCalibration()" style="flex:1;">Calibrate (Slow)</button>
+                <button onclick="toggleGazeDot()" style="flex:1;">Visualizer</button>
+            </div>
+            <div id="calib-status" style="margin-top:5px; color:#d00; font-weight:700; font-size:11px; text-align:center;">Uncalibrated</div>
+        </div>
+
+        <div class="config-box" id="run-panel">
+            <div id="trial-header">Trial 1 / N</div>
+            <div id="trial-badges" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
+            
+            <div id="annotation-area">
+                <div id="manual-input-container">
+                    <div style="font-weight:600; margin-bottom:4px; color:#555;">Manual Annotation</div>
+                    <textarea id="manualNoteInput" placeholder="Type notes here..."></textarea>
+                    <button onclick="addManualNote()" style="width:100%; margin-top:5px;">Add Note</button>
+                </div>
+                <div id="voice-input-container">
+                    <div class="recording-pulse">● Auto-Recording</div>
+                    <div style="font-size:10px; color:#666; margin-top:4px;">Speak clearly in English.</div>
+                    <button onclick="toggleVoiceManual()" id="voiceToggleBtn" class="small" style="margin-top:5px;">Pause Recording</button>
+                </div>
+            </div>
+
+            <div id="trial-notes-log"></div>
+            <button id="finishBtn" class="success" style="width:100%; margin-top:10px; height:36px;">FINISH TRIAL</button>
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <div id="instruction-banner">
+            Read full articles and make necessary note.
+        </div>
+        <div id="pdf-scroll-area">
+            <div id="pdf-wrapper">
+                <div style="margin-top:150px; text-align:center; color:#aaa;">
+                    <h3>Experiment Canvas</h3>
+                    <p>Load PDF and Generate Schedule to begin.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<footer id="footer">
+    <div id="results-toolbar">
+        <div style="font-weight:700; color:#444;">Results Log</div>
+        <button onclick="exportCSV()">Export CSV</button>
+    </div>
+    <div id="results-container">
+        <table class="log-table" id="results-table">
+            <thead><tr id="table-header"></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</footer>
+
+<div id="calib-dot"></div>
+<div id="gaze-dot"></div>
+
+<script>
+    /* =========================================
+       1. GLOBAL STATE & INIT
+       ========================================= */
+    const STATE = {
+        factors: [],
+        schedule: [],
+        currentTrial: -1,
+        results: [],
+        pdfDoc: null,
+        startTime: 0,
+        isTracking: false,
+        isVoiceRecording: false
+    };
+
+    const factorsContainer = document.getElementById('factors-container');
+
+    window.addEventListener('DOMContentLoaded', () => {
+        addFactorUI('Context', 'Desktop, Supine, Dual-Task');
+        addFactorUI('Technique', 'Multimodal, Traditional');
+    });
+
+    /* =========================================
+       2. FACTOR UI LOGIC
+       ========================================= */
+    function addFactorUI(nameVal = '', levelVal = '') {
+        const div = document.createElement('div');
+        div.className = 'factor-row'; // Use margin-bottom to separate rows
+        div.style.marginBottom = "6px";
+        div.innerHTML = `
+            <div class="row"><label>Name</label><input type="text" class="f-name" value="${nameVal}"></div>
+            <div class="row"><label>Levels</label><input type="text" class="f-levels" value="${levelVal}" placeholder="comma-separated"></div>
+            <div class="factor-controls" style="text-align:right;"><button class="small danger" onclick="this.closest('.factor-row').remove()">Remove</button></div>
+        `;
+        factorsContainer.appendChild(div);
+    }
+
+    function parseFactors() {
+        const rows = document.querySelectorAll('.factor-row'); // Select by class directly
+        const parsed = [];
+        rows.forEach(r => {
+            const name = r.querySelector('.f-name').value.trim();
+            const levels = r.querySelector('.f-levels').value.split(',').map(s => s.trim()).filter(s => s);
+            if (name && levels.length) parsed.push({ name, levels });
+        });
+        return parsed;
+    }
+
+    /* =========================================
+       3. SCHEDULE GENERATION
+       ========================================= */
+    function mulberry32(a) { return function() { let t = (a += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; } }
+    function hashStr(s) { let h = 0x811c9dc5; for(let i=0; i<s.length; i++) h ^= s.charCodeAt(i), h = Math.imul(h, 0x01000193); return h >>> 0; }
+
+    document.getElementById('genBtn').addEventListener('click', () => {
+        if (!STATE.pdfDoc) { alert("Please upload a PDF first."); return; }
+        
+        STATE.factors = parseFactors();
+        if (!STATE.factors.length) { alert("Add at least one factor."); return; }
+
+        let combos = [{}];
+        STATE.factors.forEach(f => {
+            let temp = [];
+            combos.forEach(c => { f.levels.forEach(l => temp.push({ ...c, [f.name]: l })); });
+            combos = temp;
+        });
+
+        const perCond = parseInt(document.getElementById('trialsPer').value) || 1;
+        let trials = [];
+        combos.forEach(c => { for(let i=1; i<=perCond; i++) trials.push({ ...c, Rep: i }); });
+
+        if (!document.getElementById('strictOrder').checked && document.getElementById('randomize').checked) {
+            const rng = mulberry32(hashStr(document.getElementById('seed').value));
+            for (let i = trials.length - 1; i > 0; i--) {
+                const j = Math.floor(rng() * (i + 1));
+                [trials[i], trials[j]] = [trials[j], trials[i]];
+            }
+        }
+
+        STATE.schedule = trials;
+        
+        // Setup Results Header
+        document.getElementById('table-header').innerHTML = `<th>Trial</th><th>Participant</th>${STATE.factors.map(f=>`<th>${f.name}</th>`).join('')}<th>Duration</th><th>Notes</th>`;
+        
+        // POPULATE SIDEBAR SCHEDULE
+        populateScheduleList(trials);
+
+        document.getElementById('run-panel').style.display = 'block';
+        startTrial(0);
+    });
+
+    function populateScheduleList(trials) {
+        const tbody = document.querySelector('#schedule-table tbody');
+        const thead = document.querySelector('#schedule-table thead tr');
+        
+        // Dynamic Headers
+        let headHtml = '<th>#</th>';
+        STATE.factors.forEach(f => headHtml += `<th>${f.name}</th>`);
+        headHtml += '<th>Rep</th>';
+        thead.innerHTML = headHtml;
+        tbody.innerHTML = '';
+
+        trials.forEach((t, i) => {
+            const tr = document.createElement('tr');
+            tr.id = `sched-row-${i}`;
+            let html = `<td>${i+1}</td>`;
+            STATE.factors.forEach(f => html += `<td>${t[f.name]}</td>`);
+            html += `<td>${t.Rep}</td>`;
+            tr.innerHTML = html;
+            tbody.appendChild(tr);
+        });
+    }
+
+    /* =========================================
+       4. EXECUTION CORE
+       ========================================= */
+    function startTrial(idx) {
+        if (idx >= STATE.schedule.length) {
+            alert("Experiment Complete!");
+            document.getElementById('run-panel').style.display = 'none';
+            return;
+        }
+        STATE.currentTrial = idx;
+        const trial = STATE.schedule[idx];
+
+        document.getElementById('trial-header').innerText = `Trial ${idx + 1} / ${STATE.schedule.length}`;
+        
+        // Badges
+        const badgeContainer = document.getElementById('trial-badges');
+        badgeContainer.innerHTML = '';
+        STATE.factors.forEach(f => {
+            const span = document.createElement('span');
+            span.style.background = '#e3f2fd'; span.style.border = '1px solid #90caf9'; span.style.padding='2px 6px'; span.style.borderRadius='3px'; span.style.fontSize='10px'; span.style.fontWeight='bold'; span.style.color='#0d47a1';
+            span.innerText = `${f.name}: ${trial[f.name]}`;
+            badgeContainer.appendChild(span);
+        });
+
+        // Highlight Schedule Row
+        document.querySelectorAll('#schedule-table tr').forEach(r => r.classList.remove('active-row'));
+        const activeRow = document.getElementById(`sched-row-${idx}`);
+        if(activeRow) {
+            activeRow.classList.add('active-row');
+            activeRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+
+        const isMulti = Object.values(trial).some(v => String(v).toLowerCase().includes('multi'));
+        configureHardwareAndUI(isMulti);
+
+        document.getElementById('trial-notes-log').innerHTML = '';
+        document.getElementById('manualNoteInput').value = '';
+        STATE.startTime = Date.now();
+    }
+
+    function configureHardwareAndUI(isMultimodal) {
+        const manualDiv = document.getElementById('manual-input-container');
+        const voiceDiv = document.getElementById('voice-input-container');
+
+        if (isMultimodal) {
+            STATE.isTracking = true;
+            if(window.webgazer) webgazer.resume();
+            manualDiv.style.display = 'none';
+            voiceDiv.style.display = 'block';
+            startVoiceSafe();
+        } else {
+            STATE.isTracking = false;
+            if(window.webgazer) webgazer.pause();
+            manualDiv.style.display = 'block';
+            voiceDiv.style.display = 'none';
+            stopVoiceSafe();
+        }
+    }
+
+    // Voice Safety Wrappers
+    function startVoiceSafe() {
+        if (!window.recognition) return;
+        if (STATE.isVoiceRecording) return; 
+        try {
+            window.recognition.start();
+            STATE.isVoiceRecording = true;
+            document.getElementById('voiceToggleBtn').innerText = "Pause Recording";
+            document.querySelector('.recording-pulse').style.display = 'block';
+        } catch (e) { console.warn(e); }
+    }
+
+    function stopVoiceSafe() {
+        if (!window.recognition) return;
+        try { window.recognition.stop(); } catch (e) {}
+        STATE.isVoiceRecording = false;
+        document.getElementById('voiceToggleBtn').innerText = "Resume Recording";
+        document.querySelector('.recording-pulse').style.display = 'none';
+    }
+
+    window.toggleVoiceManual = function() {
+        if (STATE.isVoiceRecording) stopVoiceSafe();
+        else startVoiceSafe();
+    }
+
+    // Finish Trial
+    document.getElementById('finishBtn').addEventListener('click', () => {
+        const idx = STATE.currentTrial;
+        const trial = STATE.schedule[idx];
+        const duration = Date.now() - STATE.startTime;
+        const notes = Array.from(document.querySelectorAll('.sticky-note')).map(n => n.lastChild.textContent).join(' | ');
+        const row = { Trial: idx+1, Participant: document.getElementById('pID').value, ...trial, Duration: duration, Notes: notes };
+        STATE.results.push(row);
+        renderResultRow(row);
+        stopVoiceSafe();
+        startTrial(idx + 1);
+    });
+
+    function renderResultRow(row) {
+        const tr = document.createElement('tr');
+        let html = `<td>${row.Trial}</td><td>${row.Participant}</td>`;
+        STATE.factors.forEach(f => html += `<td>${row[f.name]}</td>`);
+        html += `<td>${row.Duration}</td><td>${row.Notes.substring(0,40)}${row.Notes.length>40?'...':''}</td>`;
+        tr.innerHTML = html;
+        document.querySelector('#results-table tbody').appendChild(tr);
+        document.getElementById('results-container').scrollTop = document.getElementById('results-container').scrollHeight;
+    }
+
+    /* =========================================
+       5. NOTES & SPEECH
+       ========================================= */
+    function addNoteToLog(text, source) {
+        const div = document.createElement('div');
+        div.className = 'sticky-note';
+        div.innerHTML = `<div class="note-source">${source}</div>${text}`;
+        document.getElementById('trial-notes-log').prepend(div);
+    }
+
+    window.addManualNote = function() {
+        const input = document.getElementById('manualNoteInput');
+        const txt = input.value.trim();
+        if(txt) { addNoteToLog(txt, "Typed"); input.value = ''; }
+    }
+
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Speech) {
+        window.recognition = new Speech();
+        window.recognition.continuous = true;
+        window.recognition.lang = 'en-US';
+        window.recognition.onresult = (e) => {
+            for (let i = e.resultIndex; i < e.results.length; ++i) {
+                if (e.results[i].isFinal) {
+                    const txt = e.results[i][0].transcript.trim();
+                    if(txt) addNoteToLog(txt, "Voice (Auto)");
+                }
+            }
+        };
+        window.recognition.onend = () => {
+            if (STATE.isVoiceRecording) { try { window.recognition.start(); } catch(e) { STATE.isVoiceRecording=false; } }
+        };
+    }
+
+    /* =========================================
+       6. PDF & EYE TRACKING
+       ========================================= */
+    document.getElementById('pdfFile').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const buff = await file.arrayBuffer();
+        STATE.pdfDoc = await pdfjsLib.getDocument(buff).promise;
+        renderPDF();
+    });
+
+    async function renderPDF() {
+        const container = document.getElementById('pdf-wrapper');
+        container.innerHTML = '';
+        for (let i = 1; i <= STATE.pdfDoc.numPages; i++) {
+            const page = await STATE.pdfDoc.getPage(i);
+            const viewport = page.getViewport({ scale: 1.2 });
+            const div = document.createElement('div'); div.style.position = 'relative';
+            const cvs = document.createElement('canvas'); cvs.height = viewport.height; cvs.width = viewport.width;
+            await page.render({ canvasContext: cvs.getContext('2d'), viewport }).promise;
+            
+            const txtDiv = document.createElement('div'); txtDiv.className = 'textLayer';
+            txtDiv.style.width = `${viewport.width}px`; txtDiv.style.height = `${viewport.height}px`;
+            const content = await page.getTextContent();
+            pdfjsLib.renderTextLayer({ textContent: content, container: txtDiv, viewport, textDivs: [] });
+
+            setTimeout(() => {
+                txtDiv.querySelectorAll('span').forEach(s => {
+                    const t = s.textContent;
+                    if(t.length) s.innerHTML = `<b>${t.substring(0, Math.ceil(t.length*0.4))}</b>${t.substring(Math.ceil(t.length*0.4))}`;
+                });
+            }, 300);
+            div.append(cvs, txtDiv); container.append(div);
+        }
+    }
+
+    // Scroll & Gaze
+    const GAZE = { bufX: [], bufY: [], scrollState: 0, reqId: null };
+    window.addEventListener('load', () => {
+        if(!window.webgazer) return;
+        webgazer.setGazeListener((data, time) => {
+            if (!data || !STATE.isTracking) return;
+            GAZE.bufX.push(data.x); GAZE.bufY.push(data.y);
+            if (GAZE.bufX.length > 10) { GAZE.bufX.shift(); GAZE.bufY.shift(); }
+            const x = GAZE.bufX.reduce((a,b)=>a+b)/GAZE.bufX.length;
+            const y = GAZE.bufY.reduce((a,b)=>a+b)/GAZE.bufY.length;
+
+            const dot = document.getElementById('gaze-dot'); dot.style.left = `${x}px`; dot.style.top = `${y}px`;
+            const h = window.innerHeight; const relY = y / h;
+            const scrollArea = document.getElementById('pdf-scroll-area');
+
+            if (relY < 0.15) performScroll(scrollArea, -3);
+            else if (relY > 0.85) performScroll(scrollArea, 3);
+            else { GAZE.scrollState = 0; cancelAnimationFrame(GAZE.reqId); GAZE.reqId = null; }
+        }).saveDataAcrossSessions(true).begin();
+        webgazer.pause();
+    });
+
+    function performScroll(el, speed) {
+        GAZE.scrollState++;
+        if (GAZE.scrollState > 5 && !GAZE.reqId) {
+            const loop = () => { el.scrollTop += speed; GAZE.reqId = requestAnimationFrame(loop); };
+            GAZE.reqId = requestAnimationFrame(loop);
+        }
+    }
+
+    window.toggleGazeDot = () => { const d = document.getElementById('gaze-dot'); d.style.display = d.style.display==='none'?'block':'none'; };
+
+    window.startCalibration = async () => {
+        if(!window.webgazer) return;
+        webgazer.resume();
+        const dot = document.getElementById('calib-dot'); dot.style.display = 'block';
+        const pts = [{x:50,y:50},{x:10,y:10},{x:90,y:10},{x:10,y:90},{x:90,y:90}];
+        document.getElementById('calib-status').innerText = "Calibrating...";
+        for(let p of pts) {
+            dot.style.left = `calc(${p.x}% - 9px)`; dot.style.top = `calc(${p.y}% - 9px)`;
+            await new Promise(r => setTimeout(r, 2500));
+            webgazer.recordScreenPosition(window.innerWidth*(p.x/100), window.innerHeight*(p.y/100), 'click');
+        }
+        dot.style.display = 'none'; document.getElementById('calib-status').innerText = "Calibrated"; document.getElementById('calib-status').style.color = "green";
+        webgazer.pause();
+    };
+
+    window.exportCSV = () => {
+        const headers = Array.from(document.querySelectorAll('#results-table thead th')).map(th => th.innerText);
+        const rows = [headers];
+        STATE.results.forEach(r => {
+            const rowData = [];
+            headers.forEach(key => {
+                if(key==='Trial') rowData.push(r.Trial); else if(key==='Participant') rowData.push(r.Participant); else if(key==='Duration') rowData.push(r.Duration); else if(key==='Notes') rowData.push(r.Notes); else rowData.push(r[key]);
+            });
+            rows.push(rowData);
+        });
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = "experiment_results.csv";
+        document.body.appendChild(link); link.click();
+    };
+</script>
+</body>
+</html>
